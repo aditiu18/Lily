@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 # File path
-DATA_PATH = "data/scored_companies.csv"
+DATA_PATH = "scored_companies_1.csv"
 MESSAGE_COL = "Email Body"
 SUBJECT_COL = "Subject"
 
