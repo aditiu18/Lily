@@ -4,8 +4,8 @@ import json
 # ------------------------------
 # Step 0: Load datasets
 # ------------------------------
-scored_path = "data/scored_companies.csv"
-enriched_path = "data/agent_enriched_exhibitors.csv"
+scored_path = "scored_companies.csv"
+enriched_path = "agent_enriched_exhibitors.csv"
 
 scored_df = pd.read_csv(scored_path)
 enriched_df = pd.read_csv(enriched_path)
