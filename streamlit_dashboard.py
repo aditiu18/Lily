@@ -30,7 +30,7 @@ event_options = sorted(df["Event Name"].dropna().unique())
 selected_events = st.sidebar.multiselect("Filter by Event", event_options, default=event_options)
 
 # Fit level filter
-fit_options = ["Best Fit", "Mid Fit"]
+fit_options = ["Best Fit", "Mid Fit", "Low Fit"]
 selected_fits = st.sidebar.multiselect("Filter by Overall Fit", fit_options, default=fit_options)
 
 # Apply filters
