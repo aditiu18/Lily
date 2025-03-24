@@ -1,72 +1,90 @@
 import pandas as pd
+import openai
+import os
+from tqdm import tqdm
+
+# Set your OpenAI API key (use dotenv or env vars in prod)
+# openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = "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"
 
 # Load the scored companies dataset
-scored_df = pd.read_csv("data/scored_companies.csv")
-
-# Fix inconsistent column name if needed
+scored_df = pd.read_csv("scored_companies.csv")
 scored_df = scored_df.rename(columns={"Industry Relation": "Industry"})
 
 # Filter companies based on Overall Fit
-fit_df = scored_df[scored_df["Overall Fit"].isin(["Best Fit", "Mid Fit"])].copy()
+fit_df = scored_df[scored_df["Overall Fit"].isin(["Best Fit", "Mid Fit", "Low Fit"])].copy()
 
-# Message generation function
-def generate_message(row, fit_level):
+# Prep for message generation
+fit_df["Fit Level"] = fit_df["Overall Fit"].apply(lambda x: "strong match" if x == "Best Fit" else "good potential match")
+
+# GPT message generator
+def generate_gpt_message(row):
     name = row["Company Name"]
     industry = row.get("Industry", "")
     event = row.get("Event Name", "")
     description = row.get("Description", "")
-    decision_maker = row.get("Decision Maker")
-    if pd.isna(decision_maker) or str(decision_maker).strip().lower() == "nan":
-        decision_maker = "there"
+    decision_maker = row.get("Decision Maker", "there")
     size = row.get("Size", "")
     revenue = row.get("2024 Revenue USD", "")
-    revenue_phrase = f"with over ${revenue:,.0f} in annual revenue" if pd.notna(revenue) and revenue > 0 else "with a strong global presence"
+    fit_level = row["Fit Level"]
 
-    # Shorten or fallback description
+    if pd.isna(decision_maker) or str(decision_maker).strip().lower() == "nan":
+        decision_maker = "there"
+
+    revenue_phrase = f"with over ${revenue:,.0f} in annual revenue" if pd.notna(revenue) and revenue > 0 else "with a strong market presence"
     if pd.isna(description) or len(str(description).strip()) < 30:
         description = f"{name} is a notable player in the {industry} industry."
-    else:
-        description = str(description).strip().split(".")[0] + "."
+    
+    prompt = f"""
+Write a concise and professional cold outreach email from Aditi Rani Uppari at DuPont Tedlar to {decision_maker} at {name}, a company in the {industry} industry. The email is about a potential collaboration around weather-resistant graphic film applications.
 
-    # Message
-    fit_phrase = "a top-tier fit" if fit_level == "strong match" else "a promising opportunity"
+Details:
+- Event: {event}
+- Size: {size}
+- Revenue: {revenue_phrase}
+- Description: {description}
+- Fit Level: {fit_level}
 
-    message = f"""
-Hi {decision_maker},
-
-While reviewing exhibitors for {event}, I came across {name}, and your leadership in the {industry} space stood out. From what I’ve gathered, {description} You appear to be a well-established company ({size}, {revenue_phrase}), actively involved in the signage and graphics industry.
-
-We're specifically seeking companies expanding into durable, weather-resistant graphic applications—an area where your innovation clearly aligns. Your involvement in key events like {event} reinforces your commitment to the market.
-
-Given your profile, I believe {name} is {fit_phrase} for a collaboration with DuPont Tedlar. Would you be open to a brief conversation this week?
-
-Best regards,  
-Aditi Rani Uppari
+The tone should be personalized, professional, and confident. End with a question about meeting or discussing further. It should start with Hi {decision_maker}
 """
-    return message.strip()
 
-# Email template formatting
-def format_email_template(row, message):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful B2B marketing assistant."},
+                {"role": "user", "content": prompt.strip()}
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error generating message for {name}: {e}")
+        return None
+
+# Generate emails using GPT
+tqdm.pandas()
+fit_df["Email Body"] = fit_df.progress_apply(generate_gpt_message, axis=1)
+
+# Email subject generator
+def generate_subject(row):
     name = row["Company Name"]
     fit = row["Overall Fit"]
-    subject = (
+    return (
         f"{name} x Trade Show Growth Opportunity" if fit == "Best Fit"
         else f"Let's connect after {name}'s showcase at the event"
     )
-    return subject, message
 
-# Apply message generation and formatting
-fit_df["Fit Level"] = fit_df["Overall Fit"].apply(lambda x: "strong match" if x == "Best Fit" else "good potential match")
-fit_df["Email Body"] = fit_df.apply(lambda row: generate_message(row, row["Fit Level"]), axis=1)
-fit_df["Subject"] = fit_df.apply(lambda row: format_email_template(row, row["Email Body"])[0], axis=1)
+fit_df["Subject"] = fit_df.apply(generate_subject, axis=1)
 
-# Merge personalized fields back into the full scored_df
+# Merge GPT results back into full dataset
 scored_df = scored_df.merge(
     fit_df[["Company Name", "Subject", "Email Body"]],
     on="Company Name",
     how="left"
 )
 
-# Save the updated dataframe
-output_path = "data/scored_companies.csv"
+# Save results
+output_path = "scored_companies_1.csv"
 scored_df.to_csv(output_path, index=False)
+
