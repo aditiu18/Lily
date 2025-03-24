@@ -27,15 +27,24 @@ st.sidebar.header("🔍 Filters")
 
 # Event filter
 event_options = sorted(df["Event Name"].dropna().unique())
-selected_events = st.sidebar.multiselect("Filter by Event", event_options, default=event_options)
+selected_events = st.sidebar.multiselect("Filter by Event", event_options)
 
 # Fit level filter
 fit_options = ["Best Fit", "Mid Fit", "Low Fit"]
-selected_fits = st.sidebar.multiselect("Filter by Overall Fit", fit_options, default=fit_options)
+selected_fits = st.sidebar.multiselect("Filter by Overall Fit", fit_options)
 
-# Apply filters
-filtered_df = df[df["Event Name"].isin(selected_events) & df["Overall Fit"].isin(selected_fits)]
+# --- Apply filters with fallback to all ---
+filtered_df = df.copy()
 
+# If user selected events, filter; else show all
+if selected_events:
+    filtered_df = filtered_df[filtered_df["Event Name"].isin(selected_events)]
+
+# If user selected fits, filter; else show all
+if selected_fits:
+    filtered_df = filtered_df[filtered_df["Overall Fit"].isin(selected_fits)]
+
+# Show result count
 st.write(f"Showing {len(filtered_df)} companies matching your filters.")
 
 # ---- Editable message section per row ----
